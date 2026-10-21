@@ -1,0 +1,17 @@
+RTL simulation; UART events were checked against the actual TX serial pin.
+
+RV32 2x2 XY CREDIT NOC
+MEMORY PASS
+TIMER PASS
+live injected=0x00000048 delivered=0x00000048 mean_Q16=0x007eb550 variance_Q16=0x01c28a5b
+transactions=0x0000076d mean_Q16=0x00811094 variance_Q16=0x0005b2ae
+SYSTEM PASS
+SOC PASS FAST=0 transactions=2481
+
+RV32 2x2 XY CREDIT NOC
+MEMORY PASS
+TIMER PASS
+live injected=0x00000048 delivered=0x00000048 mean_Q16=0x007e3ffa variance_Q16=0x01f53028
+transactions=0x0000076d mean_Q16=0x00811066 variance_Q16=0x000617c3
+SYSTEM PASS
+SOC PASS FAST=1 transactions=2481

@@ -1,0 +1,68 @@
+[
+  {
+    "variant": "baseline",
+    "flip_flops": 140,
+    "lut_cells": 2201,
+    "cells": {
+      "CARRY4": 100,
+      "FDRE": 135,
+      "FDSE": 5,
+      "INV": 55,
+      "LUT1": 30,
+      "LUT2": 1120,
+      "LUT3": 229,
+      "LUT4": 219,
+      "LUT5": 86,
+      "LUT6": 517,
+      "MUXF7": 135,
+      "MUXF8": 26,
+      "RAM32M": 55
+    },
+    "fmax_mhz": null,
+    "method": "Yosys xc7 mapping; not Vivado placement/routing"
+  },
+  {
+    "variant": "fast",
+    "flip_flops": 135,
+    "lut_cells": 2176,
+    "cells": {
+      "CARRY4": 100,
+      "FDRE": 130,
+      "FDSE": 5,
+      "INV": 55,
+      "LUT1": 18,
+      "LUT2": 1036,
+      "LUT3": 220,
+      "LUT4": 244,
+      "LUT5": 115,
+      "LUT6": 543,
+      "MUXF7": 154,
+      "MUXF8": 19,
+      "RAM32M": 55
+    },
+    "fmax_mhz": null,
+    "method": "Yosys xc7 mapping; not Vivado placement/routing"
+  },
+  {
+    "variant": "espresso",
+    "flip_flops": 140,
+    "lut_cells": 1767,
+    "cells": {
+      "CARRY4": 10,
+      "FDRE": 135,
+      "FDSE": 5,
+      "INV": 10,
+      "LUT1": 10,
+      "LUT2": 870,
+      "LUT3": 170,
+      "LUT4": 210,
+      "LUT5": 44,
+      "LUT6": 463,
+      "MUXF7": 114,
+      "MUXF8": 49,
+      "RAM32M": 55
+    },
+    "fmax_mhz": null,
+    "method": "Yosys xc7 mapping; not Vivado placement/routing"
+  }
+]

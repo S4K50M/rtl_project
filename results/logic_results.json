@@ -1,0 +1,28 @@
+{
+  "xy_minimized": {
+    "truth_rows": 256,
+    "outputs": 5,
+    "equivalent": true,
+    "espresso_cubes": 46,
+    "bdd_nodes_per_output": [
+      47,
+      8,
+      8,
+      38,
+      38
+    ]
+  },
+  "rr_minimized": {
+    "truth_rows": 256,
+    "outputs": 5,
+    "equivalent": true,
+    "espresso_cubes": 25,
+    "bdd_nodes_per_output": [
+      23,
+      19,
+      20,
+      19,
+      28
+    ]
+  }
+}

@@ -1,0 +1,8 @@
+build/
+__pycache__/
+*.vcd
+*.jou
+*.log
+.Xil/
+vivado_project/
+.venv/

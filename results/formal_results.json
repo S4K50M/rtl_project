@@ -1,0 +1,172 @@
+{
+  "CTL_arbiter": {
+    "states": 5,
+    "AG_AF_persistent_request_served": true,
+    "all_masks_mutual_exclusion": true
+  },
+  "XY_CDG": [
+    {
+      "mesh": 2,
+      "channels": 8,
+      "dependencies": 4,
+      "acyclic": true
+    },
+    {
+      "mesh": 3,
+      "channels": 24,
+      "dependencies": 28,
+      "acyclic": true
+    },
+    {
+      "mesh": 4,
+      "channels": 48,
+      "dependencies": 68,
+      "acyclic": true
+    }
+  ],
+  "deadlock": {
+    "all_turns_states": 161,
+    "counterexample": [
+      [
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        1
+      ],
+      [
+        0,
+        0,
+        1,
+        1
+      ],
+      [
+        0,
+        1,
+        1,
+        1
+      ],
+      [
+        1,
+        1,
+        1,
+        1
+      ]
+    ],
+    "final_occupancy": [
+      4,
+      4,
+      4,
+      4
+    ],
+    "final_credits": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "held_channels": [
+      [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          0
+        ]
+      ],
+      [
+        [
+          1,
+          0
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      [
+        [
+          1,
+          1
+        ],
+        [
+          0,
+          1
+        ]
+      ],
+      [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    ],
+    "requested_channels": [
+      [
+        [
+          1,
+          0
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      [
+        [
+          1,
+          1
+        ],
+        [
+          0,
+          1
+        ]
+      ],
+      [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          0
+        ]
+      ]
+    ],
+    "XY_resource_states": 256,
+    "XY_AG_AF_completion": true
+  },
+  "RTL_rr": {
+    "method": "RTL temporal induction",
+    "passed": true
+  },
+  "RTL_credit": {
+    "method": "RTL temporal induction",
+    "passed": true
+  },
+  "RTL_deadlock": {
+    "mixed_turns": "expected deadlock reached",
+    "XY_control": "32 flits drained"
+  }
+}
