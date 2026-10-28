@@ -84,16 +84,19 @@ module tb_noc_router;
     int  downstream_buf[NPORTS];   // how many flits are buffered downstream
     logic [63:0] downstream_data[NPORTS][$]; // captured output flits per port
 
+    logic [NPORTS-1:0] auto_credit_mask = '1;
+    logic [NPORTS-1:0] manual_credit_pulse = '0;
     // After a flit is captured, return the credit immediately (cycle later)
     // by driving out_credit high for one cycle.
     // We model a zero-latency consumer by default.
 
     always @(posedge clk) begin
         for (int p = 0; p < NPORTS; p++) begin
-            out_credit[p] <= 0;
+            out_credit[p] <= manual_credit_pulse[p] ||
+                             (auto_credit_mask[p] && out_valid[p] && !rst);
             if (out_valid[p] && !rst) begin
                 downstream_data[p].push_back(out_flit[p*64 +: 64]);
-                out_credit[p] <= 1;   // consume immediately → return credit
+                // credit return is selected above
             end
         end
     end
@@ -224,6 +227,8 @@ module tb_noc_router;
         rst = 1;
         in_flit  = 0;
         in_valid = 0;
+        auto_credit_mask = '1;
+        manual_credit_pulse = '0;
         for (int p = 0; p < NPORTS; p++) inj_credits[p] = DEPTH;
         clear_scoreboard();
         repeat(4) @(negedge clk);
@@ -279,7 +284,7 @@ module tb_noc_router;
         // =================================================================
         $display("[TEST] Single-flit East routing");
         do_reset();
-        flit_h = make_head(2'd1, 2'd0, 1'b1, `RD_REQ, 8'hBB, 32'hEAST0001);
+        flit_h = make_head(2'd1, 2'd0, 1'b1, `RD_REQ, 8'hBB, 32'hEA57_0001);
         send_flit(0, flit_h);
         expected_pkts[1].push_back(flit_h);
         wait_drain(1, 1, "east-route");
@@ -293,7 +298,7 @@ module tb_noc_router;
         // =================================================================
         $display("[TEST] Single-flit South routing");
         do_reset();
-        flit_h = make_head(2'd0, 2'd1, 1'b1, `RD_REQ, 8'hCC, 32'hSOUTH001);
+        flit_h = make_head(2'd0, 2'd1, 1'b1, `RD_REQ, 8'hCC, 32'h5007_0001);
         send_flit(0, flit_h);
         expected_pkts[3].push_back(flit_h);
         wait_drain(3, 1, "south-route");
@@ -306,8 +311,8 @@ module tb_noc_router;
         // =================================================================
         $display("[TEST] Multi-flit wormhole packet");
         do_reset();
-        flit_h = make_head(2'd1, 2'd0, 1'b0, `WR_REQ, 8'h01, 32'hADDR_0001); // head
-        flit_b = make_body(1'b1, 32'hDATA_CAFE);                               // tail
+        flit_h = make_head(2'd1, 2'd0, 1'b0, `WR_REQ, 8'h01, 32'hADD0_0001); // head
+        flit_b = make_body(1'b1, 32'hDA7A_CAFE);                               // tail
         expected_pkts[1].push_back(flit_h);
         expected_pkts[1].push_back(flit_b);
         send_flit(0, flit_h);
@@ -333,6 +338,7 @@ module tb_noc_router;
             // Detach the automatic credit return by using a flag
             logic hold_credits;
             hold_credits = 1;
+            auto_credit_mask[1] = 0;
 
             for (int k = 0; k < DEPTH; k++) begin
                 flit_h = make_head(2'd1, 2'd0, 1'b1, `RD_REQ, k[7:0], 32'h0000_0000 + k);
@@ -345,6 +351,12 @@ module tb_noc_router;
 
             // Now re-enable credit return — the always block handles this
             hold_credits = 0;
+            auto_credit_mask[1] = 1;
+            // Credits previously consumed must be explicitly returned.
+            for (int c = 0; c < DEPTH; c++) begin
+                @(negedge clk); manual_credit_pulse[1] = 1;
+                @(posedge clk); #1; manual_credit_pulse[1] = 0;
+            end
             wait_drain(1, DEPTH, "backpressure");
             check_scoreboard(1, "backpressure");
         end
@@ -388,7 +400,8 @@ module tb_noc_router;
                 in_pkt = 0;
                 last_tag = downstream_data[1][0][`TAG];
                 for (int k = 0; k < 4; k++) begin
-                    logic [7:0] cur_tag = downstream_data[1][k][`TAG];
+                    logic [7:0] cur_tag;
+                    cur_tag = downstream_data[1][k][`TAG];
                     if (k == 0) begin
                         check("contention: flit0 is HEAD", downstream_data[1][k][`HEAD] == 1);
                     end else begin
@@ -420,8 +433,10 @@ module tb_noc_router;
         begin
             // Disable automatic credit return for port1
             logic auto_credit_en;
-            auto_credit_en = 0;   // we will drive out_credit[1] manually
-            int captured = 0;
+            int captured;
+            auto_credit_en = 0;
+            auto_credit_mask[1] = 0;
+            captured = 0;
 
             // Send DEPTH flits — they will be forwarded but credits not returned,
             // so the router's credit counter for port1 will drop to 0.
@@ -447,10 +462,11 @@ module tb_noc_router;
             // The flit sits in ACTIVE/WAIT_CREDIT state.
             // Return all credits now
             repeat(captured) begin
-                @(negedge clk); out_credit[1] = 1;
-                @(posedge clk); #1; out_credit[1] = 0;
+                @(negedge clk); manual_credit_pulse[1] = 1;
+                @(posedge clk); #1; manual_credit_pulse[1] = 0;
             end
 
+            auto_credit_mask[1] = 1;
             repeat(10) @(negedge clk);
             $display("[PASS] WAIT_CREDIT recovery (observed %0d pre-stall flits)", captured);
             pass_count++;
@@ -464,8 +480,8 @@ module tb_noc_router;
         do_reset();
         begin
             logic [63:0] flit_local, flit_east;
-            flit_local = make_head(2'd0, 2'd0, 1'b1, `RD_REQ, 8'h10, 32'hL0CA_0001);
-            flit_east  = make_head(2'd1, 2'd0, 1'b1, `RD_REQ, 8'h20, 32'hEAST_0002);
+            flit_local = make_head(2'd0, 2'd0, 1'b1, `RD_REQ, 8'h10, 32'h10CA_0001);
+            flit_east  = make_head(2'd1, 2'd0, 1'b1, `RD_REQ, 8'h20, 32'hEA57_0002);
 
             expected_pkts[0].push_back(flit_local);
             expected_pkts[1].push_back(flit_east);
@@ -494,7 +510,7 @@ module tb_noc_router;
         do_reset();
         begin
             logic [63:0] flit_f;
-            flit_f = make_head(2'd1, 2'd0, 1'b1, `RD_REQ, 8'h30, 32'hFAST_TEST);
+            flit_f = make_head(2'd1, 2'd0, 1'b1, `RD_REQ, 8'h30, 32'hFA57_7E57);
 
             // Both DUTs share in_flit/in_valid; each has its own out
             send_flit(0, flit_f);
@@ -518,7 +534,7 @@ module tb_noc_router;
         do_reset();
         begin
             for (int k = 0; k < DEPTH; k++) begin
-                flit_h = make_head(2'd0, 2'd0, 1'b1, `RD_REQ, k[7:0], 32'hUNIQ_0000+k);
+                flit_h = make_head(2'd0, 2'd0, 1'b1, `RD_REQ, k[7:0], 32'hA110_0000+k);
                 send_flit(0, flit_h);
                 expected_pkts[0].push_back(flit_h);
             end

@@ -75,9 +75,11 @@ module tb_noc_endpoint;
 
     // TX path model — returns inject_credit one cycle after seeing inject_valid
     logic inject_credit_pipe;
+    logic auto_inject_credit = 1;
     always @(posedge clk) begin
         inject_credit_pipe <= inject_valid && !rst;
-        inject_credit      <= inject_credit_pipe;
+        if (rst) inject_credit <= 0;
+        else inject_credit <= auto_inject_credit ? inject_credit_pipe : inject_credit;
     end
 
     // Capture injected flits for TX scoreboard
@@ -109,6 +111,7 @@ module tb_noc_endpoint;
         rx_ready     = 0;
         eject_flit   = 0;
         eject_valid  = 0;
+        auto_inject_credit = 1;
         inject_credit_pipe = 0;
         inject_credit = 0;
         tx_captured  = {};
@@ -157,8 +160,8 @@ module tb_noc_endpoint;
         while (!rx_valid) @(negedge clk);
         @(negedge clk);
         rx_ready = 1;
+        flit = rx_data; // capture current FIFO head before consuming edge
         @(posedge clk); #1;
-        flit = rx_data;
         rx_ready = 0;
     endtask
 
@@ -206,7 +209,7 @@ module tb_noc_endpoint;
         $display("[TEST] TX credit depletion and replenishment");
         do_reset();
         // Stop credit return temporarily
-        inject_credit_pipe = 0; inject_credit = 0;
+        auto_inject_credit = 0; inject_credit_pipe = 0; inject_credit = 0;
         // Disconnect automatic inject_credit return
         // We'll drive it manually
         // Send DEPTH flits without returning any credits
@@ -235,6 +238,7 @@ module tb_noc_endpoint;
             repeat(2) @(negedge clk);
             check("credits replenished: tx_ready=1", tx_ready === 1'b1);
             block_credits = 0;
+            auto_inject_credit = 1;
         end
         $display("[PASS] TX credit depletion and replenishment");
         pass_count++;
@@ -246,7 +250,7 @@ module tb_noc_endpoint;
         do_reset();
         tx_captured = {};
         for (i = 0; i < DEPTH; i++) begin
-            user_tx(64'hORD_0000_0000_0001 + i);
+            user_tx(64'hA0D0_0000_0000_0001 + i);
         end
         // Let credits trickle back (automatic model runs in background)
         repeat(DEPTH * 4) @(negedge clk);
@@ -254,7 +258,7 @@ module tb_noc_endpoint;
         for (i = 0; i < DEPTH; i++) begin
             if (i < tx_captured.size())
                 check($sformatf("tx order[%0d]", i),
-                      tx_captured[i] === (64'hORD_0000_0000_0001 + i));
+                      tx_captured[i] === (64'hA0D0_0000_0000_0001 + i));
         end
         $display("[PASS] TX flit ordering");
         pass_count++;
@@ -264,7 +268,7 @@ module tb_noc_endpoint;
         // =================================================================
         $display("[TEST] Single RX flit delivery");
         do_reset();
-        flit_a = 64'hRX_CAF_E_0000_0001;
+        flit_a = 64'hCAFE_0000_0000_0001;
         // Inject from mesh side
         @(negedge clk); eject_flit = flit_a; eject_valid = 1;
         @(posedge clk); #1; eject_valid = 0; eject_flit = 0;
@@ -286,7 +290,7 @@ module tb_noc_endpoint;
         do_reset();
         for (i = 0; i < DEPTH; i++) begin
             @(negedge clk);
-            eject_flit  = 64'hRXFF_0000 + i;
+            eject_flit  = 64'hBEEF_0000 + i;
             eject_valid = 1;
             @(posedge clk); #1;
             eject_valid = 0; eject_flit = 0;
@@ -296,7 +300,7 @@ module tb_noc_endpoint;
         // Drain and check order
         for (i = 0; i < DEPTH; i++) begin
             user_rx(recv_flit);
-            check($sformatf("rx fifo order[%0d]", i), recv_flit === (64'hRXFF_0000 + i));
+            check($sformatf("rx fifo order[%0d]", i), recv_flit === (64'hBEEF_0000 + i));
         end
         repeat(2) @(negedge clk);
         check("rx fifo empty after drain", rx_valid === 1'b0);
@@ -308,7 +312,7 @@ module tb_noc_endpoint;
         // =================================================================
         $display("[TEST] RX backpressure (rx_ready=0)");
         do_reset();
-        flit_a = 64'hBACK_PRESS_0000_0001;
+        flit_a = 64'hBAC0_0000_0000_0001;
         @(negedge clk); eject_flit = flit_a; eject_valid = 1;
         @(posedge clk); #1; eject_valid = 0; eject_flit = 0;
         repeat(3) @(negedge clk);
@@ -337,14 +341,14 @@ module tb_noc_endpoint;
         begin
             int credit_count = 0;
             // Monitor eject_credit
-            @(negedge clk); eject_flit = 64'hCRED_TEST_0000_0001; eject_valid = 1;
+            @(negedge clk); eject_flit = 64'hC0ED_0000_0000_0001; eject_valid = 1;
             @(posedge clk); #1; eject_valid = 0; eject_flit = 0;
             // Accept the flit
             repeat(2) @(negedge clk);
             @(negedge clk); rx_ready = 1;
-            @(posedge clk); #1;
-            // eject_credit should be 1 this cycle (rx_valid && rx_ready)
+            #1;
             check("eject_credit pulses", eject_credit === 1'b1);
+            @(posedge clk); #1;
             rx_ready = 0;
         end
         $display("[PASS] eject_credit returned");
@@ -359,33 +363,31 @@ module tb_noc_endpoint;
         begin
             logic [63:0] rx_results[$];
 
-            // TX: send 8 flits (2 rounds of DEPTH)
+            // TX, RX injection, and RX consumption run concurrently.
+            // This avoids exceeding the depth-4 receive FIFO.
             fork
                 begin
-                    for (i = 0; i < 8; i++) begin
-                        user_tx(64'hTX_CONC_0000 + i);
+                    for (int t = 0; t < 8; t++)
+                        user_tx(64'h700C_0000 + t);
+                end
+                begin
+                    for (int t = 0; t < 8; t++) begin
+                        mesh_eject(64'h800C_0000 + t);
+                        repeat(2) @(negedge clk);
                     end
                 end
-                // RX: eject 8 flits from mesh side with 1-cycle gaps
                 begin
-                    for (i = 0; i < 8; i++) begin
-                        mesh_eject(64'hRX_CONC_0000 + i);
-                        @(negedge clk);
+                    for (int t = 0; t < 8; t++) begin
+                        user_rx(recv_flit);
+                        rx_results.push_back(recv_flit);
                     end
                 end
             join
 
-            // Drain RX
-            repeat(5) @(negedge clk);
-            for (i = 0; i < 8; i++) begin
-                user_rx(recv_flit);
-                rx_results.push_back(recv_flit);
-            end
-
             // Verify RX ordering
             for (i = 0; i < 8; i++) begin
                 check($sformatf("concurrent rx[%0d]", i),
-                      rx_results[i] === (64'hRX_CONC_0000 + i));
+                      rx_results[i] === (64'h800C_0000 + i));
             end
 
             // Verify TX count
@@ -402,15 +404,15 @@ module tb_noc_endpoint;
         do_reset();
         tx_captured = {};
         // Disable automatic inject_credit return; manually control
-        inject_credit_pipe = 0; inject_credit = 0;
+        auto_inject_credit = 0; inject_credit_pipe = 0; inject_credit = 0;
         begin
             logic block_credits_2;
             block_credits_2 = 1;
 
             // Send two flits; they'll use up two credits
-            @(negedge clk); tx_data=64'hNOL_OSS_0001; tx_valid=1;
+            @(negedge clk); tx_data=64'hA055_0001; tx_valid=1;
             @(posedge clk); #1; tx_valid=0;
-            @(negedge clk); tx_data=64'hNOL_OSS_0002; tx_valid=1;
+            @(negedge clk); tx_data=64'hA055_0002; tx_valid=1;
             @(posedge clk); #1; tx_valid=0;
 
             // Return credits manually
@@ -418,9 +420,9 @@ module tb_noc_endpoint;
             @(negedge clk); inject_credit=1; @(posedge clk); #1; inject_credit=0;
 
             // Send two more
-            @(negedge clk); tx_data=64'hNOL_OSS_0003; tx_valid=1;
+            @(negedge clk); tx_data=64'hA055_0003; tx_valid=1;
             @(posedge clk); #1; tx_valid=0;
-            @(negedge clk); tx_data=64'hNOL_OSS_0004; tx_valid=1;
+            @(negedge clk); tx_data=64'hA055_0004; tx_valid=1;
             @(posedge clk); #1; tx_valid=0;
             // Return credits
             @(negedge clk); inject_credit=1; @(posedge clk); #1; inject_credit=0;
@@ -428,11 +430,12 @@ module tb_noc_endpoint;
 
             repeat(5) @(negedge clk);
             check("no-loss tx count", tx_captured.size() == 4);
-            check("no-loss flit0", tx_captured[0] === 64'hNOL_OSS_0001);
-            check("no-loss flit1", tx_captured[1] === 64'hNOL_OSS_0002);
-            check("no-loss flit2", tx_captured[2] === 64'hNOL_OSS_0003);
-            check("no-loss flit3", tx_captured[3] === 64'hNOL_OSS_0004);
+            check("no-loss flit0", tx_captured[0] === 64'hA055_0001);
+            check("no-loss flit1", tx_captured[1] === 64'hA055_0002);
+            check("no-loss flit2", tx_captured[2] === 64'hA055_0003);
+            check("no-loss flit3", tx_captured[3] === 64'hA055_0004);
             block_credits_2 = 0;
+            auto_inject_credit = 1;
         end
         $display("[PASS] TX no-loss under stall");
         pass_count++;

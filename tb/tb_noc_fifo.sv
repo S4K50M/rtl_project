@@ -227,8 +227,8 @@ module tb_noc_fifo;
         @(negedge clk);
         // now do simultaneous push+pop for 6 cycles
         for (i = 0; i < 6; i++) begin
-            automatic logic [WIDTH-1:0] new_val = 64'hAAAA_0002 + i;
-            automatic logic [WIDTH-1:0] prev_head = ref_q[0];
+            logic [WIDTH-1:0] new_val;
+            new_val = 64'hAAAA_0002 + i;
             @(negedge clk);
             push_a = 1; din_a = new_val; pop_a = 1;
             @(posedge clk); #1;
@@ -265,14 +265,15 @@ module tb_noc_fifo;
             @(negedge clk); pop_a=1; push_a=0;
             @(posedge clk); #1; void'(ref_q.pop_front()); pop_a=0;
         end
-        // Push DEPTH more — this forces wr pointer to wrap
-        for (i = 0; i < DEPTH; i++) begin
+        // Push DEPTH-1 more — wraps write pointer without exceeding capacity
+        for (i = 0; i < DEPTH-1; i++) begin
             @(negedge clk); push_a=1; din_a=64'hCCCC_0000+i; pop_a=0;
             @(posedge clk); #1; ref_q.push_back(64'hCCCC_0000+i); push_a=0;
         end
         // Drain and verify order
         while (ref_q.size() > 0) begin
-            automatic logic [WIDTH-1:0] exp = ref_q[0];
+            logic [WIDTH-1:0] exp;
+            exp = ref_q[0];
             check("wrap dout", dout_a === exp);
             @(negedge clk); pop_a=1; push_a=0;
             @(posedge clk); #1; void'(ref_q.pop_front()); pop_a=0;
@@ -288,10 +289,11 @@ module tb_noc_fifo;
         $display("[TEST] Randomised legal push/pop sequences");
         ref_q = {};
         for (i = 0; i < 200; i++) begin
+            logic do_push_r, do_pop_r;
             // LCG PRNG
             rng_state = rng_state * 64'h6C62272E07BB0142 + 64'h62B821756295C58D;
-            automatic logic do_push_r = (rng_state[3:0] < 10) && !full_a;
-            automatic logic do_pop_r  = (rng_state[7:4] < 8)  && !empty_a;
+            do_push_r = (rng_state[3:0] < 10) && !full_a;
+            do_pop_r  = (rng_state[7:4] < 8)  && !empty_a;
             @(negedge clk);
             push_a = do_push_r;
             pop_a  = do_pop_r;
@@ -309,7 +311,8 @@ module tb_noc_fifo;
         end
         // drain leftover
         while (!empty_a) begin
-            automatic logic [WIDTH-1:0] exp = ref_q[0];
+            logic [WIDTH-1:0] exp;
+            exp = ref_q[0];
             check("rand drain dout", dout_a === exp);
             @(negedge clk); pop_a=1;
             @(posedge clk); #1; void'(ref_q.pop_front()); pop_a=0;
