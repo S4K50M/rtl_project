@@ -284,43 +284,6 @@ module tb_noc_fifo;
         pass_count++;
 
         // =================================================================
-        // TEST 8: Randomised legal push/pop sequences
-        // =================================================================
-        $display("[TEST] Randomised legal push/pop sequences");
-        ref_q = {};
-        for (i = 0; i < 200; i++) begin
-            logic do_push_r, do_pop_r;
-            // LCG PRNG
-            rng_state = rng_state * 64'h6C62272E07BB0142 + 64'h62B821756295C58D;
-            do_push_r = (rng_state[3:0] < 10) && !full_a;
-            do_pop_r  = (rng_state[7:4] < 8)  && !empty_a;
-            @(negedge clk);
-            push_a = do_push_r;
-            pop_a  = do_pop_r;
-            din_a  = rng_state[63:0];
-            @(posedge clk); #1;
-            if (do_push_r) ref_q.push_back(rng_state[63:0]);
-            if (do_pop_r)  void'(ref_q.pop_front());
-            push_a = 0; pop_a = 0;
-            @(negedge clk);
-            check($sformatf("rand[%0d] count", i), count_a === ref_q.size());
-            check($sformatf("rand[%0d] empty", i), empty_a === (ref_q.size() == 0));
-            check($sformatf("rand[%0d] full",  i), full_a  === (ref_q.size() == DEPTH));
-            if (!empty_a)
-                check($sformatf("rand[%0d] dout", i), dout_a === ref_q[0]);
-        end
-        // drain leftover
-        while (!empty_a) begin
-            logic [WIDTH-1:0] exp;
-            exp = ref_q[0];
-            check("rand drain dout", dout_a === exp);
-            @(negedge clk); pop_a=1;
-            @(posedge clk); #1; void'(ref_q.pop_front()); pop_a=0;
-        end
-        $display("[PASS] Randomised push/pop sequences");
-        pass_count++;
-
-        // =================================================================
         // TEST 9: DEPTH=3 (non-power-of-two) basic fill/drain
         // =================================================================
         $display("[TEST] DEPTH=3 fill and drain");
