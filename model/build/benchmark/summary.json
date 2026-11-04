@@ -1,0 +1,13 @@
+{
+  "method": "cycle model validated against RTL; 2 seeds; finite observation window",
+  "zero_load_corner_single_flit_cycles": {
+    "baseline": 10,
+    "fast": 7
+  },
+  "peak_observed_delivered_flits_node_cycle": {
+    "uniform_baseline": 0.54285,
+    "uniform_fast": 0.6532,
+    "hotspot_baseline": 0.42925,
+    "hotspot_fast": 0.47435000000000005
+  }
+}

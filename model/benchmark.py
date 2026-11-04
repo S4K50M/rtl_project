@@ -13,7 +13,7 @@ import random
 from collections import deque
 from pathlib import Path
 from statistics import mean, pvariance
-from model.network import Network, packet, HEAD, TAIL
+from network import Network, packet, HEAD, TAIL
 
 
 def run(rate,pattern,fast,cycles=3000,warmup=500,seed=7,nx=2):
