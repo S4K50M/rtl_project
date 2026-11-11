@@ -6,7 +6,7 @@ Usage:
   python analysis/analyze_noc.py --data-dir results/baseline --extra-data-dir results/fast
 
 Input: noc_packet_events.csv, noc_cycle_stats.csv, noc_run_summary.csv.
-Output: descriptive_statistics.csv, summary_table.md, figures/*.png, figures/*.pdf.
+Output: descriptive_statistics.csv, summary_table.md, figures/*.svg. With no arguments, compare data/Fast=0 and data/Fast=1.
 """
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ def style() -> None:
         "grid.alpha": 0.22,
         "legend.frameon": False,
         "savefig.bbox": "tight",
-        "pdf.fonttype": 42,
+        "svg.fonttype": "none",
     })
 
 
@@ -100,6 +100,7 @@ def compute_metrics(pk: pd.DataFrame, cy: pd.DataFrame, sm: pd.DataFrame) -> pd.
         c = cy[(cy.PhaseID == phase) & (cy.FAST == fast) & (cy.Window == 1)]
         duration = int(r.MeasurementCycles)
         n = int(r.NX * r.NY)
+        delivered = pk[(pk.PhaseID == phase) & (pk.FAST == fast) & (pk.DeliveryWindow == 1)]
         rows.append({
             "PhaseID": phase,
             "FAST": fast,
@@ -117,6 +118,7 @@ def compute_metrics(pk: pd.DataFrame, cy: pd.DataFrame, sm: pd.DataFrame) -> pd.
             "AcceptedSourceFlitsPerNodePerCycle": c.SourceFlits.sum() / (duration * n),
             "AcceptedSinkFlitsPerNodePerCycle": c.SinkFlits.sum() / (duration * n),
             "MeanLatencyCycles": p.LatencyCycles.mean(),
+            "DeliveryWindowMeanLatencyCycles": delivered.LatencyCycles.mean(),
             "MedianLatencyCycles": p.LatencyCycles.median(),
             "P95LatencyCycles": p.LatencyCycles.quantile(0.95),
             "P99LatencyCycles": p.LatencyCycles.quantile(0.99),
@@ -130,10 +132,9 @@ def compute_metrics(pk: pd.DataFrame, cy: pd.DataFrame, sm: pd.DataFrame) -> pd.
 
 def save(fig: plt.Figure, output: Path, name: str) -> None:
     output.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output / f"{name}.png", dpi=300, bbox_inches="tight", facecolor="white")
-    fig.savefig(output / f"{name}.pdf", bbox_inches="tight", facecolor="white")
+    fig.savefig(output / f"{name}.svg", format="svg", bbox_inches="tight", facecolor="white")
     plt.close(fig)
-    print(f"Saved {name}.png + {name}.pdf")
+    print(f"Saved {name}.svg")
 
 
 def series_label(row: pd.DataFrame) -> str:
@@ -331,6 +332,37 @@ def plot_grouped_rate_latency(metrics: pd.DataFrame, out: Path) -> None:
     save(fig, out, "13_latency_vs_generator_threshold")
 
 
+def load_runs(data_dirs) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Load disjoint hardware runs without silently counting a phase twice."""
+    sets = [load_data(path) for path in data_dirs]
+    pk, cy, sm = [pd.concat(parts, ignore_index=True) for parts in zip(*sets)]
+    if sm.duplicated(["FAST", "PhaseID"]).any():
+        raise ValueError("Input data sets must have unique (FAST, PhaseID) combinations")
+    return pk, cy, sm
+
+
+def plot_model_comparison(metrics: pd.DataFrame, out: Path) -> None:
+    """Golden-model panel layout using observable RTL quantities.
+
+    Delivery-window latency matches the model's cohort convention. RTL logs
+    cannot recover generation-to-tail latency or offered flits/node/cycle.
+    """
+    for column, name, ylabel in (
+        ("DeliveryWindowMeanLatencyCycles", "mean_latency", "Accepted header to tail latency (cycles)"),
+        ("AcceptedSinkFlitsPerNodePerCycle", "delivered_flits_node_cycle", "Delivered flits / node / cycle"),
+    ):
+        fig, axes = plt.subplots(1, 2, figsize=(12, 4.5), layout="constrained")
+        for ax, pattern in zip(axes, PATTERN_ORDER):
+            for fast, group in metrics[metrics.Pattern == pattern].groupby("FAST"):
+                group = group.sort_values("ConfiguredThresholdProbability")
+                ax.plot(group.ConfiguredThresholdProbability, group[column], "o-",
+                        label=f"{'fast' if fast else 'baseline'} (FAST={int(fast)})")
+            ax.set(title=pattern.capitalize(), xlabel="Generator threshold / 65536", ylabel=ylabel)
+            ax.set_ylim(bottom=0)
+            ax.legend()
+        save(fig, out, name)
+
+
 def plot_all(pk: pd.DataFrame, cy: pd.DataFrame, metrics: pd.DataFrame, out: Path) -> None:
     style()
     plot_latency_vs_injection_rate(metrics, out)
@@ -339,14 +371,19 @@ def plot_all(pk: pd.DataFrame, cy: pd.DataFrame, metrics: pd.DataFrame, out: Pat
     plot_stalls(metrics, out)
     plot_latency_box(pk, out)
     plot_high_rate_ecdf(pk, out)
-    plot_flit_activity(cy, out)
-    plot_outstanding(cy, out)
-    plot_matrix(pk, out, "uniform")
-    plot_matrix(pk, out, "hotspot")
+    for fast in sorted(pk.FAST.unique()):
+        variant_out = out / f"FAST={int(fast)}"
+        variant_cycles = cy[cy.FAST == fast]
+        variant_packets = pk[pk.FAST == fast]
+        plot_flit_activity(variant_cycles, variant_out)
+        plot_outstanding(variant_cycles, variant_out)
+        plot_matrix(variant_packets, variant_out, "uniform")
+        plot_matrix(variant_packets, variant_out, "hotspot")
+        plot_packet_progress(variant_cycles, variant_out)
     plot_source_fairness(pk, out)
     plot_hop_latency(pk, out)
-    plot_packet_progress(cy, out)
     plot_grouped_rate_latency(metrics, out)
+    plot_model_comparison(metrics, out)
 
 
 def write_summary(metrics: pd.DataFrame, output: Path) -> None:
@@ -373,18 +410,15 @@ def write_summary(metrics: pd.DataFrame, output: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--data-dir", type=Path, required=True, help="Folder containing all three NoC CSV files")
+    parser.add_argument("--data-dir", type=Path, default=None, help="Single run folder; defaults to comparing data/Fast=0 and data/Fast=1")
     parser.add_argument("--extra-data-dir", type=Path, default=None, help="Optional second run (e.g. FAST=1)")
     parser.add_argument("--output-dir", type=Path, default=Path(__file__).resolve().parent / "output")
     args = parser.parse_args()
-    sets = [load_data(args.data_dir)]
-    if args.extra_data_dir:
-        sets.append(load_data(args.extra_data_dir))
-    pk = pd.concat([v[0] for v in sets], ignore_index=True)
-    cy = pd.concat([v[1] for v in sets], ignore_index=True)
-    sm = pd.concat([v[2] for v in sets], ignore_index=True)
-    if sm.duplicated(["FAST", "PhaseID"]).any():
-        raise ValueError("Input data sets must have unique (FAST, PhaseID) combinations")
+    if args.extra_data_dir and args.data_dir is None:
+        parser.error("--extra-data-dir requires --data-dir")
+    data_dirs = ([args.data_dir] + ([args.extra_data_dir] if args.extra_data_dir else [])
+                 if args.data_dir else [Path(__file__).resolve().parent / "data" / f"Fast={fast}" for fast in (0, 1)])
+    pk, cy, sm = load_runs(data_dirs)
     metrics = compute_metrics(pk, cy, sm)
     write_summary(metrics, args.output_dir)
     plot_all(pk, cy, metrics, args.output_dir / "figures")

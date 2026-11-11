@@ -32,23 +32,23 @@ To emit files at custom paths, pass XSIM plusargs such as `+PACKETS=C:/noc/packe
 From the repository root, install dependencies:
 
 ```bash
-python -m pip install -r analysis/requirements.txt
+python -m pip install numpy pandas matplotlib jupyter
 ```
 
-Copy the three CSV files to `analysis/data/` and run:
+The current run CSVs are in `analysis/data/Fast=0/` and `analysis/data/Fast=1/`. Analyze both by default:
 
 ```bash
-python analysis/analyze_noc.py --data-dir analysis/data --output-dir analysis/output
+python analysis/analyze_noc.py --output-dir analysis/output
 ```
 
-The program verifies that the phase totals match the packet log, exports `analysis/output/descriptive_statistics.csv` and `analysis/output/summary_table.md`, then saves **14 charts as both high-resolution PNG and vector PDF** in `analysis/output/figures/`. You can also open `analysis/noc_traffic_analysis.ipynb` to run the graphs individually.
+The program verifies that the phase totals match the packet log, exports `analysis/output/descriptive_statistics.csv` and `analysis/output/summary_table.md`, then saves **vector SVG charts** in `analysis/output/figures/`. You can also open `analysis/noc_traffic_analysis.ipynb` to run the graphs individually.
 
 ### Baseline vs FAST
 
 The default single simulation provides all **six** traffic cases for **one** hardware configuration. To compare baseline and optimized router implementations, run the same testbench a second time with `FAST=1`, save those three CSV files to a different directory, then:
 
 ```bash
-python analysis/analyze_noc.py --data-dir analysis/data/baseline --extra-data-dir analysis/data/fast --output-dir analysis/output_comparison
+python analysis/analyze_noc.py --data-dir analysis/data/Fast=0 --extra-data-dir analysis/data/Fast=1 --output-dir analysis/output_comparison
 ```
 
 It is not valid to claim a baseline-vs-FAST comparison from a single `FAST=0` simulation.
@@ -67,4 +67,10 @@ It is not valid to claim a baseline-vs-FAST comparison from a single `FAST=0` si
 
 ## GitHub-friendly deliverables
 
-Commit `tb/tb_traffic.sv`, `analysis/analyze_noc.py`, `analysis/noc_traffic_analysis.ipynb`, `analysis/requirements.txt`, selected run CSVs and the resulting figures. Record the Vivado version, git revision and FAST parameter in your report. Avoid committing huge simulation databases or generated `.sim` directories.
+Commit `tb/tb_traffic.sv`, `analysis/analyze_noc.py`, `analysis/noc_traffic_analysis.ipynb`, selected run CSVs and the resulting figures. Record the Vivado version, git revision and FAST parameter in your report. Avoid committing huge simulation databases or generated `.sim` directories.
+
+## Current comparison outputs
+
+Combined charts compare FAST=0 and FAST=1. Per-variant time traces and traffic matrices are saved in `figures/FAST=0/` and `figures/FAST=1/`. Statistics remain CSV and the report remains Markdown.
+
+`mean_latency.svg` and `delivered_flits_node_cycle.svg` follow the two-panel uniform/hotspot layout of `model/benchmark.py`. The former uses the delivery-window latency cohort, matching the model; the original latency plots retain the injection-window cohort including drain completions. Both use the RTL generator threshold on the x-axis, since offered flit rate is not logged. The model?s `mean_queued_latency` cannot be reconstructed without packet-generation timestamps. Model and RTL curves use different traffic generators and are not direct equivalence evidence.
