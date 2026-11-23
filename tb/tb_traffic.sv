@@ -8,6 +8,7 @@
 // Timestamps: first SOURCE header handshake -> last DESTINATION tail handshake.
 module tb_traffic;
     parameter NX = 2, NY = 2, FAST = 0;
+    parameter MINIMIZED = 0;
     parameter WARMUP_CYCLES = 2000;
     parameter MEASURE_CYCLES = 10000;
     parameter MAX_DRAIN_CYCLES = 15000;
@@ -23,7 +24,7 @@ module tb_traffic;
     reg [N-1:0] rr = 0;
     wire [31:0] injected [0:N-1];
 
-    noc_mesh #(.NX(NX), .NY(NY), .FAST(FAST)) mesh (
+    noc_mesh #(.NX(NX), .NY(NY), .FAST(FAST), .MINIMIZED(MINIMIZED)) mesh (
         clk, rst, ifl, iv, ic, efl, ev, ec
     );
 
