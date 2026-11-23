@@ -1,0 +1,29 @@
+{
+  "xy_route": {
+    "truth_table_rows": 256,
+    "output_bits": 5,
+    "exhaustive_equivalence": true,
+    "espresso_product_terms": 46,
+    "bdd_nodes_per_output": [
+      47,
+      8,
+      8,
+      38,
+      38
+    ]
+  },
+  "round_robin": {
+    "truth_table_rows": 256,
+    "output_bits": 5,
+    "exhaustive_equivalence": true,
+    "espresso_product_terms": 25,
+    "bdd_nodes_per_output": [
+      23,
+      19,
+      20,
+      19,
+      28
+    ]
+  },
+  "note": "Truth-table and BDD correctness; does not establish smaller FPGA area."
+}

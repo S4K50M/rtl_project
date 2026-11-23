@@ -3,7 +3,7 @@
 Synthesizable SystemVerilog for a credit-controlled wormhole mesh, AXI4-Lite
 packet bridges, and a standalone RV32I SoC demonstration. The supplied image is
 the requirements baseline. The repository was empty, so the demo supplies its
-own processor and peripherals rather than claiming to modify an unavailable
+own processor and peripherals rather than claiming to modify theunavailable
 VL326 implementation.
 
 ```mermaid

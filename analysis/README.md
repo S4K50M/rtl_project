@@ -74,3 +74,30 @@ Commit `tb/tb_traffic.sv`, `analysis/analyze_noc.py`, `analysis/noc_traffic_anal
 Combined charts compare FAST=0 and FAST=1. Per-variant time traces and traffic matrices are saved in `figures/FAST=0/` and `figures/FAST=1/`. Statistics remain CSV and the report remains Markdown.
 
 `mean_latency.svg` and `delivered_flits_node_cycle.svg` follow the two-panel uniform/hotspot layout of `model/benchmark.py`. The former uses the delivery-window latency cohort, matching the model; the original latency plots retain the injection-window cohort including drain completions. Both use the RTL generator threshold on the x-axis, since offered flit rate is not logged. The model?s `mean_queued_latency` cannot be reconstructed without packet-generation timestamps. Model and RTL curves use different traffic generators and are not direct equivalence evidence.
+
+## Offline baseline Welford analysis
+
+Run `python analysis/welford_analysis.py` from the repository root (or invoke the
+script by its path from another directory). Defaults read
+`analysis/data/Espresso=0/Fast=0/noc_packet_events.csv` and write to
+`analysis/output/welford_baseline/`. Use `--data-dir` and `--output-dir` to override.
+
+Each phase resets the accumulator and consumes measurement-injected packets,
+including drain deliveries, in delivery-cycle/source/packet-ID order. Use
+`--cohort all` to include warmup and drain injections. Simultaneous deliveries
+are serialized in source/packet-ID order; fixed-point rounding depends on order.
+
+Every floating-point Welford prefix is checked against an independent integer-sum
+population mean/variance reference. The script also emulates the baseline RTL's
+Q16.16 truncation, 32767-cycle input clamp, 65535-sample limit, and variance
+saturation. `--max-samples` can exercise smaller count limits. CSV traces retain
+packet identities and numerical errors; CSV/JSON summaries report final results
+and worst prefix errors. Uniform and hotspot SVGs show running statistics and
+fixed-point error. Use `--no-plots` to run without Matplotlib.
+
+These are offline algorithm checks, not RTL simulation or handshake/timing
+verification. Error is measured against the same clamped, count-limited sample
+stream. Baseline FAST=0 is enforced; select Espresso=0 data for the unminimized
+baseline (the packet CSV does not identify Espresso configuration).
+
+Run edge-case checks with `python -m unittest tests.test_welford_analysis`.

@@ -1,0 +1,7 @@
+PhaseID,Pattern,RateLabel,RateThreshold,FAST,NX,NY,WarmupCycles,MeasurementCycles,DrainCycles,StartedPackets,InjectedPackets,DeliveredPackets,MeasuredStartedPackets,MeasuredCompletedDuringWindow,MeasuredInjectedDelivered,MeasuredSourceFlits,MeasuredSinkFlits,MeasuredSourceStallNodeCycles,MeasuredSinkStallNodeCycles
+0,uniform,low,8192,0,2,2,2000,10000,0,873,873,873,724,724,724,2172,2172,1,1400
+1,hotspot,low,8192,0,2,2,2000,10000,0,873,873,873,724,724,724,2172,2172,1,1358
+2,uniform,medium,32768,0,2,2,2000,10000,20,3178,3178,3178,2622,2621,2622,7863,7861,64,4729
+3,hotspot,medium,32768,0,2,2,2000,10000,15,3127,3127,3127,2577,2576,2577,7728,7729,481,4768
+4,uniform,high,61440,0,2,2,2000,10000,20,4901,4901,4901,4055,4056,4055,12163,12167,261,7369
+5,hotspot,high,61440,0,2,2,2000,10000,27,4330,4330,4330,3583,3583,3583,10750,10752,4671,6633
